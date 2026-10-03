@@ -165,7 +165,7 @@ function renderTrend(s) {
 
 function renderTopRules(s) {
   const list = $("top-rules");
-  list.innerHTML = "";
+  list.replaceChildren();
   if (!s.top_rules.length) {
     list.append(el("li", { className: "muted", textContent: "No rules triggered in this period." }));
     return;
@@ -187,17 +187,16 @@ function renderTopRules(s) {
 async function loadDigests() {
   const digests = await api("/reports/digests");
   const list = $("digests");
-  list.innerHTML = "";
+  list.replaceChildren();
   if (!digests.length) {
     list.append(el("li", { className: "muted", textContent: "No digests yet." }));
     return;
   }
-  const deliveryLabel = { sent: "Emailed", failed: "Email failed", outbox: "Outbox only" };
   for (const d of digests.slice(0, 15)) {
     const who = d.trigger === "scheduled" ? "Scheduled" : `By ${d.created_by.name}`;
     list.append(el("li", {}, el("details", {},
       el("summary", {},
-        el("span", { className: `delivery-pill ${d.delivery.status}`, textContent: deliveryLabel[d.delivery.status] }),
+        el("span", { className: `delivery-pill ${d.delivery.status}`, textContent: DELIVERY_LABEL[d.delivery.status] }),
         el("span", { className: "outbox-subject", textContent: `Last ${d.days === 1 ? "24 hours" : `${d.days} days`} · ${d.total} reviewed · ${d.by_status.FAIL} failed · ${d.cases.overdue} overdue` }),
         el("span", { className: "muted nowrap", textContent: `${who} · ${new Date(d.created_at).toLocaleString()}` })),
       el("pre", { className: "outbox-body", textContent: d.body }),

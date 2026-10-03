@@ -1,6 +1,8 @@
 // Shared by every signed-in page: API helper, DOM helpers, and the header/nav.
 // Load it before the page's own script. Each page calls `await initShell({...})` first.
 
+// --- API ---
+
 async function api(path, options = {}) {
   const res = await fetch(path, {
     headers: { "Content-Type": "application/json" },
@@ -17,11 +19,14 @@ async function api(path, options = {}) {
   return res.status === 204 ? null : res.json();
 }
 
-const $ = (id) => document.getElementById(id);
+// --- Labels and DOM helpers ---
+
 const STATUS_LABEL = { PASS: "PASS", NEEDS_REVIEW: "NEEDS REVIEW", FAIL: "FAIL" };
 const CASE_STATE_LABEL = {
   open: "Open", in_review: "In review", escalated: "Escalated", approved: "Approved", rejected: "Rejected",
 };
+const DELIVERY_LABEL = { sent: "Emailed", failed: "Email failed", outbox: "Outbox only" };
+
 const isResolved = (caseInfo) => caseInfo.state === "approved" || caseInfo.state === "rejected";
 
 /** "Due in 3h", "Overdue by 2d", or "Resolved", with a class for styling. */
@@ -36,6 +41,8 @@ function dueLabel(caseInfo) {
     ? { text: `Overdue by ${span}`, className: "due-overdue" }
     : { text: `Due in ${span}`, className: ms < 3600000 ? "due-soon" : "due-ok" };
 }
+
+const $ = (id) => document.getElementById(id);
 
 function el(tag, props = {}, ...children) {
   const node = document.createElement(tag);
@@ -61,9 +68,6 @@ const NAV = [
 // --- Header ---
 
 function renderHeader(active) {
-  const header = $("topbar");
-  header.innerHTML = "";
-
   const brand = el("a", { className: "brand", href: "/" },
     el("span", { className: "logo-mark", textContent: "CG", ariaHidden: "true" }),
     el("span", { className: "brand-name", textContent: "CyanGuard" }),
@@ -93,7 +97,7 @@ function renderHeader(active) {
     el("span", { className: "user-chip", textContent: `${currentUser.name} · ${currentUser.role_label}` }),
     logout);
 
-  header.append(el("div", { className: "topbar-inner" }, brand, nav, right));
+  $("topbar").replaceChildren(el("div", { className: "topbar-inner" }, brand, nav, right));
 }
 
 function renderNoAccess(minRole) {

@@ -2,6 +2,7 @@
 // Uses helpers from common.js (loaded first).
 
 // --- Step 1: generate with Cyan ---
+
 let lastGenerated = { prompt: "", model: "", output: "" };
 
 const sourceLabel = (model) => (model === "cyan-demo-script" ? "Source: demo script" : `Source: ${model}`);
@@ -50,6 +51,7 @@ $("output").addEventListener("input", () => {
 });
 
 // --- Step 2: compliance check ---
+
 $("check-btn").addEventListener("click", async () => {
   const text = $("output").value.trim();
   if (!text) return;
@@ -75,10 +77,11 @@ $("check-btn").addEventListener("click", async () => {
 });
 
 // --- History ---
+
 async function loadHistory() {
   const reviews = await api("/reviews");
   const list = $("history");
-  list.innerHTML = "";
+  list.replaceChildren();
   if (!reviews.length) {
     list.append(el("li", { className: "muted", textContent: "No reviews yet." }));
     return;
@@ -110,6 +113,8 @@ async function loadHistory() {
     list.append(li);
   }
 }
+
+// --- Init ---
 
 async function init() {
   if (!(await initShell({ active: "analyze" }))) return;
