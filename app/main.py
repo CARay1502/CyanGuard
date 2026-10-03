@@ -116,7 +116,10 @@ def logout(response: Response):
 
 @app.get("/auth/me")
 def me(user: dict = Depends(get_current_user)):
-    return public_user(user)
+    return {
+        **public_user(user),
+        "mode": config.APP_MODE,
+    }
 
 
 # --- Compliance ---

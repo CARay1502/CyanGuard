@@ -83,8 +83,7 @@ function renderHeader(active) {
     nav.append(link);
   }
 
-  const mode = el("span", { className: "badge", textContent: "…" });
-  api("/health").then((h) => { mode.textContent = `${h.mode} mode`; });
+  const mode = el("span", { className: "badge", textContent: `${currentUser.mode} mode` });
 
   const logout = el("button", { type: "button", className: "topbar-btn", textContent: "Sign out" });
   logout.addEventListener("click", async () => {
