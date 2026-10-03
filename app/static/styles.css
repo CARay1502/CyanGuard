@@ -126,6 +126,13 @@ h3 {
   letter-spacing: 0.5px;
 }
 
+.logo-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 0;
+}
+
 .brand-name { font-weight: 700; font-size: 1.15rem; letter-spacing: 0.2px; }
 
 .brand-sub {
