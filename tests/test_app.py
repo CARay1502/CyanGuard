@@ -451,3 +451,13 @@ def test_local_session_secret_is_generated_and_kept(tmp_path, monkeypatch):
         assert len(first) >= 32 and deps.get_session_secret() == first
     finally:
         deps.get_session_secret.cache_clear()
+
+
+@pytest.mark.parametrize("path", ["/", "/login.html", "/app.js", "/styles.css"])
+def test_frontend_files_are_revalidated(anon, path):
+    # Browsers must re-check pages after a redeploy instead of reusing a stale copy.
+    res = anon.get(path)
+    assert res.status_code == 200
+    assert res.headers["cache-control"] == "no-cache"
+    etag = res.headers["etag"]
+    assert anon.get(path, headers={"If-None-Match": etag}).status_code == 304

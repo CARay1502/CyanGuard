@@ -144,5 +144,17 @@ def delete_review(
     reviews.delete(review_id)
 
 
+class FrontendFiles(StaticFiles):
+    """Static files that browsers re-check on every load (cheap: unchanged files return 304).
+
+    Without this, browsers may keep showing an old page or script after a redeploy.
+    """
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 # Serve the frontend. Mounted last so the API routes above take priority.
-app.mount("/", StaticFiles(directory=Path(__file__).parent / "static", html=True), name="static")
+app.mount("/", FrontendFiles(directory=Path(__file__).parent / "static", html=True), name="static")
