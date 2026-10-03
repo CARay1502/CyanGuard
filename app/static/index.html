@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CyanGuard</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="logo-mark" aria-hidden="true">CG</span>
+        <span class="brand-name">CyanGuard</span>
+        <span class="brand-sub">Compliance Review</span>
+      </div>
+      <span id="mode" class="badge">…</span>
+    </div>
+  </header>
+
+  <div class="page-head">
+    <h1>AI Response Compliance Review</h1>
+    <p>Screen assistant output against SEC and FINRA communication rules before it reaches clients.</p>
+  </div>
+
+  <main>
+    <section class="card">
+      <h2>1. Get a response from Cyan</h2>
+      <form id="generate-form">
+        <input id="prompt" placeholder="Ask Cyan a customer question…" required>
+        <button type="submit">Generate</button>
+      </form>
+      <div class="chips">
+        <span class="muted">Try:</span>
+        <button class="chip" data-prompt="How do I start diversifying my investments?">Diversifying</button>
+        <button class="chip" data-prompt="Is there a safe, guaranteed fund?">Safe fund</button>
+        <button class="chip" data-prompt="Which tech stock should I buy?">Hot stock</button>
+        <button class="chip" data-prompt="Should I move my retirement into crypto?">Crypto retirement</button>
+      </div>
+
+      <label for="output">Cyan output <span class="muted">(or paste any LLM output)</span></label>
+      <textarea id="output" rows="6" placeholder="Generated output appears here…"></textarea>
+      <div class="row">
+        <span id="source" class="muted"></span>
+        <button id="check-btn">Run compliance check</button>
+      </div>
+    </section>
+
+    <section class="card" id="report-card" hidden>
+      <h2>2. Compliance report</h2>
+      <div class="overview">
+        <div id="status" class="status"></div>
+        <div class="stat"><strong id="score"></strong><span>score</span></div>
+        <div class="stat sev-high"><strong id="count-high"></strong><span>high</span></div>
+        <div class="stat sev-medium"><strong id="count-medium"></strong><span>medium</span></div>
+        <div class="stat sev-low"><strong id="count-low"></strong><span>low</span></div>
+      </div>
+      <p id="report-meta" class="muted"></p>
+      <h3>Reviewed text</h3>
+      <div id="highlighted" class="highlighted"></div>
+      <h3>Flags</h3>
+      <ol id="flags" class="flags"></ol>
+    </section>
+
+    <section class="card">
+      <h2>Recent reviews</h2>
+      <ul id="history" class="history"></ul>
+    </section>
+
+    <p class="disclaimer">
+      CyanGuard is an automated screening aid, not legal advice. Flagged and passing
+      responses should still follow your firm's compliance review process.
+    </p>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
