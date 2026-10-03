@@ -69,7 +69,8 @@ const NAV = [
 
 function renderHeader(active) {
   const brand = el("a", { className: "brand", href: "/" },
-    el("span", { className: "logo-mark", textContent: "CG", ariaHidden: "true" }),
+    el("span", { className: "logo-mark", ariaHidden: "true" },
+      el("img", { src: "/logo.png", alt: "" })),
     el("span", { className: "brand-name", textContent: "CyanGuard" }),
     el("span", { className: "brand-sub", textContent: "Agentic AI Safety Layer" }));
 
