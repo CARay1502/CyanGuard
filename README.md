@@ -6,7 +6,7 @@ FAIL), a score, and flags with highlighted excerpts, rule citations, and suggest
 
 | `APP_MODE` | Cyan (source model)                   | Compliance checker                  | Review storage        | AWS credentials? |
 |------------|---------------------------------------|-------------------------------------|-----------------------|------------------|
-| `local`    | Synthetic canned responses            | Rule-based (regex) checker          | `data/reviews.json`   | No               |
+| `local`    | Synthetic canned responses            | Rule-based (regex) checker          | `data/*.json` files   | No               |
 | `aws`      | Bedrock model with a Cyan system prompt | Bedrock model acting as reviewer  | DynamoDB table        | Yes              |
 
 > CyanGuard is a screening aid, not legal advice. Have your compliance team review
@@ -53,7 +53,7 @@ app/
     cyan.py            # SyntheticCyan (canned samples) and BedrockCyan
     rules.py           # SEC/FINRA rule catalog with citations
     compliance.py      # LocalRuleChecker, BedrockComplianceChecker, build_report
-    storage.py         # LocalStorage (JSON file) and DynamoStorage
+    storage.py         # LocalDatabase (JSON files) and DynamoDatabase (one table), split into collections
 lambda_handler.py      # Lambda entry point (wraps the app with Mangum)
 build_lambda.py        # builds dist/cyanguard-lambda.zip for upload
 events/                # sample events for the Lambda console's Test tab
@@ -73,14 +73,31 @@ uvicorn app.main:app --reload
 Open http://127.0.0.1:8000 for the app, or http://127.0.0.1:8000/docs for interactive API docs.
 Run tests with `pytest`.
 
-Endpoints: `GET /health`, `GET /rules`, `POST /cyan/generate`, `GET/POST /reviews`,
-`GET/DELETE /reviews/{id}`.
+### Signing in
+
+The first sign-in creates three demo accounts. They all use the password `cyanguard-demo`,
+which the login page shows on purpose for the hackathon demo (override it with `DEMO_PASSWORD`):
+
+| Username | Role | Can do |
+|---|---|---|
+| `analyst` | Analyst | Run reviews; see only their own |
+| `compliance` | Compliance Officer | See every review |
+| `admin` | Admin | Everything, including deleting reviews |
+
+Passwords are stored as salted PBKDF2 hashes. Sessions are signed, HttpOnly cookies that
+expire after `SESSION_HOURS` (default 8). The demo password only applies when the accounts
+are first created; changing it later doesn't update existing accounts.
+
+Endpoints: `GET /health`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`,
+`GET /rules`, `POST /cyan/generate`, `GET/POST /reviews`, `GET/DELETE /reviews/{id}`.
+Everything except `/health`, login and the static pages requires signing in.
 
 ## Run in AWS mode
 
 1. `pip install -r requirements-aws.txt`
 2. Configure credentials the usual way (`aws configure` or `AWS_PROFILE`).
-3. Create a DynamoDB table named `cyanguard-reviews` with partition key `id` (String).
+3. Create a DynamoDB table named `cyanguard-data` with partition key `collection` (String)
+   and sort key `id` (String). All app data (reviews, and later users, sources, ...) lives here.
 4. In the Bedrock console, make sure you have access to the model in `BEDROCK_MODEL_ID`
    (and `COMPLIANCE_MODEL_ID`, if you set a separate one).
 5. Set `APP_MODE=aws` in `.env`, then run `uvicorn app.main:app --reload` as before.
@@ -103,11 +120,14 @@ versions of the packages, because Lambda runs on Linux. Re-run it after every co
 2. *Code -> Upload from -> .zip file*: upload `dist/cyanguard-lambda.zip`.
 3. *Code -> Runtime settings -> Edit*: handler `lambda_handler.handler`.
 4. *Configuration -> General configuration -> Edit*: timeout **30 sec**, memory **512 MB**.
-5. *Configuration -> Environment variables*: `REVIEWS_TABLE=cyanguard-reviews`
-   (and `BEDROCK_MODEL_ID` / `COMPLIANCE_MODEL_ID` only if you want non-default models).
+5. *Configuration -> Environment variables*:
+   - `SESSION_SECRET`: **required**. A long random string that signs login cookies.
+     Generate one with `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
+   - `DATA_TABLE` only if your table isn't named `cyanguard-data`; `BEDROCK_MODEL_ID` /
+     `COMPLIANCE_MODEL_ID` only if you want non-default models.
    `APP_MODE` defaults to `aws` on Lambda, and `AWS_REGION` is set automatically.
 6. *Configuration -> Permissions*: click the execution role, then add permissions for
-   `dynamodb:Scan/GetItem/PutItem/DeleteItem` on the table and `bedrock:InvokeModel`.
+   `dynamodb:Query/GetItem/PutItem/DeleteItem` on the table and `bedrock:InvokeModel`.
 7. *Configuration -> Concurrency*: reserved concurrency **2**, to cap cost if the URL leaks.
 
 ### 3. Test it
@@ -115,13 +135,15 @@ versions of the packages, because Lambda runs on Linux. Re-run it after every co
 In the *Test* tab, create a test event and paste in the contents of `events/health.json`.
 It should return status 200 with `{"status": "ok", "mode": "aws"}`.
 
-Then test the permissions with `events/review.json`. It calls Bedrock and saves to DynamoDB,
-and should return status 201 with a `"FAIL"` review. An `AccessDeniedException` means step 2.6 is incomplete.
+Then test sign-in and DynamoDB access with `events/login.json`.
+It should return status 200 with `"role": "admin"`. The first run also creates
+the demo accounts. An `AccessDeniedException` means step 2.6 is incomplete. To test Bedrock,
+sign in through the Function URL and run a compliance check.
 
 ### 4. Make it reachable
 
-*Configuration -> Function URL -> Create*. Auth type `NONE` means anyone with the link can
-use the app (there is no login yet), so keep the URL private. Open it to see the frontend.
+*Configuration -> Function URL -> Create* with auth type `NONE`. The page itself is public,
+but every API call needs a signed-in user, so open the URL and sign in.
 
 ### Updating later
 

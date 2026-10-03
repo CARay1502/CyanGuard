@@ -3,6 +3,10 @@ async function api(path, options = {}) {
     headers: { "Content-Type": "application/json" },
     ...options,
   });
+  if (res.status === 401) {
+    location.href = "/login.html"; // session missing or expired
+    throw new Error("Not signed in");
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.detail ? JSON.stringify(body.detail) : `${res.status} ${res.statusText}`);
@@ -19,6 +23,16 @@ function el(tag, props = {}, ...children) {
   node.append(...children);
   return node;
 }
+
+// --- Signed-in user ---
+let currentUser = null;
+const ROLE_RANK = { analyst: 0, compliance: 1, admin: 2 };
+const hasRole = (minimum) => currentUser && ROLE_RANK[currentUser.role] >= ROLE_RANK[minimum];
+
+$("logout").addEventListener("click", async () => {
+  await fetch("/auth/logout", { method: "POST" });
+  location.href = "/login.html";
+});
 
 // --- Mode badge ---
 api("/health").then((h) => {
@@ -166,17 +180,25 @@ async function loadHistory() {
     return;
   }
   for (const r of reviews) {
-    const del = el("button", { className: "link", textContent: "Delete" });
-    del.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      await api(`/reviews/${r.id}`, { method: "DELETE" });
-      loadHistory();
-    });
     const li = el("li", {},
       el("span", { className: `mini-status ${r.status}`, textContent: STATUS_LABEL[r.status] }),
-      el("span", { className: "snippet", textContent: r.text }),
-      el("span", { className: "muted", textContent: `${r.score}` }),
-      del);
+      el("span", { className: "snippet", textContent: r.text }));
+    // Compliance officers and admins see everyone's reviews, so show who ran each one.
+    if (hasRole("compliance")) {
+      li.append(el("span", { className: "muted", textContent: r.submitted_by?.name || "Unknown" }));
+    }
+    li.append(el("span", { className: "muted", textContent: `${r.score}` }));
+    // Reviews are an audit trail: only admins can delete them.
+    if (hasRole("admin")) {
+      const del = el("button", { className: "link", textContent: "Delete" });
+      del.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (!confirm("Delete this review from the audit trail?")) return;
+        await api(`/reviews/${r.id}`, { method: "DELETE" });
+        loadHistory();
+      });
+      li.append(del);
+    }
     li.addEventListener("click", () => {
       $("output").value = r.text;
       renderReport(r);
@@ -185,4 +207,12 @@ async function loadHistory() {
   }
 }
 
-loadHistory();
+async function init() {
+  currentUser = await api("/auth/me");
+  $("user").textContent = `${currentUser.name} · ${currentUser.role_label}`;
+  $("user").hidden = false;
+  $("logout").hidden = false;
+  loadHistory();
+}
+
+init();

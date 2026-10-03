@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in | CyanGuard</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+
+<body>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="logo-mark" aria-hidden="true">CG</span>
+        <span class="brand-name">CyanGuard</span>
+        <span class="brand-sub">Agentic AI Safety Layer</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="login-main">
+    <section class="card login-card">
+      <h2>Sign in</h2>
+
+      <form id="login-form" class="login-form">
+        <label for="username">Username</label>
+        <input id="username" name="username" autocomplete="username" required autofocus>
+
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+
+        <p id="login-error" class="login-error" role="alert" hidden></p>
+
+        <button type="submit">Sign in</button>
+      </form>
+
+      <div class="demo-accounts">
+        <h3>Demo accounts</h3>
+        <p class="muted">Password for all accounts: <code>cyanguard-demo</code>. Click an account to fill it in.</p>
+        <ul>
+          <li><button type="button" class="link demo-user" data-username="analyst">analyst</button>: runs reviews and sees their own history</li>
+          <li><button type="button" class="link demo-user" data-username="compliance">compliance</button>: sees every review and works the review queue</li>
+          <li><button type="button" class="link demo-user" data-username="admin">admin</button>: everything, plus settings and deleting reviews</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById("login-form");
+    const error = document.getElementById("login-error");
+
+    document.querySelectorAll(".demo-user").forEach((button) => {
+      button.addEventListener("click", () => {
+        document.getElementById("username").value = button.dataset.username;
+        document.getElementById("password").value = "cyanguard-demo";
+        form.querySelector("button[type=submit]").focus();
+      });
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      error.hidden = true;
+      const button = form.querySelector("button");
+      button.disabled = true;
+      try {
+        const res = await fetch("/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: document.getElementById("username").value,
+            password: document.getElementById("password").value,
+          }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(typeof body.detail === "string" ? body.detail : "Sign in failed");
+        }
+        location.href = "/";
+      } catch (err) {
+        error.textContent = err.message;
+        error.hidden = false;
+      } finally {
+        button.disabled = false;
+      }
+    });
+  </script>
+
+</body>
+</html>

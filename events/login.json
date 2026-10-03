@@ -1,7 +1,7 @@
 {
   "version": "2.0",
   "routeKey": "$default",
-  "rawPath": "/reviews",
+  "rawPath": "/auth/login",
   "rawQueryString": "",
   "headers": {
     "host": "example.lambda-url.us-east-1.on.aws",
@@ -15,7 +15,7 @@
     "domainPrefix": "example",
     "http": {
       "method": "POST",
-      "path": "/reviews",
+      "path": "/auth/login",
       "protocol": "HTTP/1.1",
       "sourceIp": "127.0.0.1",
       "userAgent": "lambda-console-test"
@@ -27,5 +27,5 @@
     "timeEpoch": 1790899200000
   },
   "isBase64Encoded": false,
-  "body": "{\"text\": \"This fund is guaranteed to double your money. Act now!\", \"source\": \"lambda-console-test\"}"
+  "body": "{\"username\": \"admin\", \"password\": \"cyanguard-demo\"}"
 }

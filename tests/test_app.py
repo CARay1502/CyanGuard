@@ -3,15 +3,17 @@ import re
 from pathlib import Path
 
 os.environ["APP_MODE"] = "local"
+os.environ["DEMO_PASSWORD"] = TEST_PASSWORD = "test-password"
+os.environ["SESSION_SECRET"] = "test-session-secret"
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app.deps import get_storage
+from app.deps import get_db
 from app.main import app
 from app.services.compliance import LocalRuleChecker, build_report
 from app.services.cyan import SyntheticCyan
-from app.services.storage import LocalStorage
+from app.services.storage import LocalDatabase
 
 STATIC = Path(__file__).parent.parent / "app" / "static"
 
@@ -27,10 +29,35 @@ DEMO_PROMPTS = {
 
 
 @pytest.fixture
-def client(tmp_path):
-    app.dependency_overrides[get_storage] = lambda: LocalStorage(str(tmp_path / "reviews.json"))
-    yield TestClient(app)
+def db(tmp_path):
+    database = LocalDatabase(tmp_path)
+    app.dependency_overrides[get_db] = lambda: database
+    yield database
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def anon(db):
+    """A client that isn't signed in."""
+    return TestClient(app)
+
+
+@pytest.fixture
+def login(db):
+    """login("analyst") -> a client signed in as that demo user (each has its own cookies)."""
+
+    def _login(username):
+        c = TestClient(app)
+        res = c.post("/auth/login", json={"username": username, "password": TEST_PASSWORD})
+        assert res.status_code == 200, res.text
+        return c
+
+    return _login
+
+
+@pytest.fixture
+def client(login):
+    return login("analyst")
 
 
 def check(text):
@@ -145,14 +172,17 @@ def test_flag_spans_match_excerpt():
                 assert text[flag["start"]:flag["end"]] == flag["excerpt"]
 
 
-def test_generate_then_review_flow(client):
+def test_generate_then_review_flow(client, login):
     out = client.post("/cyan/generate", json={"prompt": "Is there a guaranteed safe fund?"}).json()
     review = client.post("/reviews", json={"text": out["output"], "source": out["model"]}).json()
     assert review["status"] == "FAIL"
     assert review["checker"] == "local-rules"
+    assert review["submitted_by"] == {"id": "analyst", "name": "Demo Analyst"}
     assert client.get(f"/reviews/{review['id']}").json()["id"] == review["id"]
     assert len(client.get("/reviews").json()) == 1
-    client.delete(f"/reviews/{review['id']}")
+
+    admin = login("admin")
+    assert admin.delete(f"/reviews/{review['id']}").status_code == 204
     assert client.get(f"/reviews/{review['id']}").status_code == 404
 
 
@@ -179,31 +209,245 @@ def test_lambda_handler_with_console_event():
     assert json.loads(response["body"]) == {"status": "ok", "mode": "local"}
 
 
+class FakeDynamoTable:
+    """Mimics the parts of a boto3 DynamoDB Table that DynamoStorage uses.
+
+    Returns numbers as Decimal (like DynamoDB) and pages query results one item
+    at a time so pagination gets exercised.
+    """
+
+    def __init__(self):
+        self.items = {}
+
+    def put_item(self, Item):
+        from decimal import Decimal
+
+        assert not any(isinstance(v, float) for v in Item.values()), "floats must be Decimal"
+        self.items[(Item["collection"], Item["id"])] = {
+            k: Decimal(v) if isinstance(v, int) and not isinstance(v, bool) else v for k, v in Item.items()
+        }
+
+    def get_item(self, Key):
+        item = self.items.get((Key["collection"], Key["id"]))
+        return {"Item": dict(item)} if item else {}
+
+    def delete_item(self, Key):
+        self.items.pop((Key["collection"], Key["id"]), None)
+
+    def query(self, KeyConditionExpression, ExclusiveStartKey=None):
+        collection = KeyConditionExpression.get_expression()["values"][1]
+        keys = sorted(k for k in self.items if k[0] == collection)
+        start = keys.index((collection, ExclusiveStartKey["id"])) + 1 if ExclusiveStartKey else 0
+        page = keys[start:start + 1]
+        response = {"Items": [dict(self.items[k]) for k in page]}
+        if start + 1 < len(keys):
+            response["LastEvaluatedKey"] = {"collection": collection, "id": page[-1][1]}
+        return response
+
+
+def fake_dynamo_db():
+    from app.services.storage import DynamoDatabase
+
+    db = DynamoDatabase.__new__(DynamoDatabase)  # skip boto3 setup
+    db.table = FakeDynamoTable()
+    return db
+
+
+def test_dynamo_collections_round_trip():
+    db = fake_dynamo_db()
+    reviews, users = db.collection("reviews"), db.collection("users")
+    reviews.put({"id": "r1", "score": 85, "weight": 0.5, "counts": {"high": 1}})
+    users.put({"id": "u1", "name": "Ana"})
+
+    assert reviews.get("r1") == {"id": "r1", "score": 85, "weight": 0.5, "counts": {"high": 1}}
+    assert isinstance(reviews.get("r1")["score"], int)
+    assert reviews.get("u1") is None  # collections don't leak into each other
+    assert [u["id"] for u in users.list()] == ["u1"]
+
+    reviews.delete("r1")
+    assert reviews.get("r1") is None and users.get("u1") is not None
+
+
 def test_dynamo_list_reads_all_pages():
-    from app.services.storage import DynamoStorage
-
-    class FakeTable:
-        def scan(self, **kwargs):
-            if "ExclusiveStartKey" not in kwargs:
-                return {"Items": [{"id": "a"}], "LastEvaluatedKey": {"id": "a"}}
-            return {"Items": [{"id": "b"}]}
-
-    storage = DynamoStorage.__new__(DynamoStorage)  # skip boto3 setup
-    storage.table = FakeTable()
-    assert [i["id"] for i in storage.list()] == ["a", "b"]
+    reviews = fake_dynamo_db().collection("reviews")
+    for i in range(3):
+        reviews.put({"id": f"r{i}"})
+    assert sorted(r["id"] for r in reviews.list()) == ["r0", "r1", "r2"]
 
 
-def test_lambda_review_event(tmp_path):
+def test_dynamo_rejects_reserved_field():
+    with pytest.raises(ValueError):
+        fake_dynamo_db().collection("reviews").put({"id": "x", "collection": "oops"})
+
+
+def test_local_collections_use_separate_files(tmp_path):
+    db = LocalDatabase(tmp_path)
+    db.collection("reviews").put({"id": "r1"})
+    db.collection("users").put({"id": "u1"})
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["reviews.json", "users.json"]
+    assert db.collection("reviews").get("u1") is None
+    assert db.collection("reviews") is db.collection("reviews")
+
+
+def test_lambda_login_event(db):
     import json
-    from pathlib import Path
 
     from lambda_handler import handler
 
-    app.dependency_overrides[get_storage] = lambda: LocalStorage(str(tmp_path / "reviews.json"))
+    raw = (Path(__file__).parent.parent / "events" / "login.json").read_text()
+    event = json.loads(raw.replace("cyanguard-demo", TEST_PASSWORD))
+    response = handler(event, None)
+    assert response["statusCode"] == 200
+    assert json.loads(response["body"])["role"] == "admin"
+    assert any(c.startswith("cyanguard_session=") for c in response.get("cookies", []))
+
+
+# --- Login and roles ---
+
+def test_demo_password_default_matches_login_page(monkeypatch):
+    import importlib
+
+    from app import config
+
+    monkeypatch.delenv("DEMO_PASSWORD")
+    for mode in ("local", "aws"):
+        monkeypatch.setenv("APP_MODE", mode)
+        assert importlib.reload(config).DEMO_PASSWORD == "cyanguard-demo"
+    login_page = (Path(__file__).parent.parent / "app" / "static" / "login.html").read_text()
+    assert login_page.count("cyanguard-demo") == 2  # shown to users + filled by the buttons
+    monkeypatch.undo()
+    importlib.reload(config)
+
+
+def test_password_hashing():
+    from app.services.auth import hash_password, verify_password
+
+    stored = hash_password("s3cret", iterations=1000)
+    assert stored.startswith("pbkdf2_sha256$1000$") and "s3cret" not in stored
+    assert verify_password("s3cret", stored)
+    assert not verify_password("wrong", stored)
+    assert not verify_password("anything", None)  # unknown user
+    assert hash_password("s3cret", iterations=1000) != stored  # random salt
+
+
+def test_session_tokens():
+    from app.services.auth import read_session, sign_session
+
+    token = sign_session("analyst", "key", 60, now=1000)
+    assert read_session(token, "key", now=1030) == "analyst"
+    assert read_session(token, "key", now=1061) is None  # expired
+    assert read_session(token, "other-key", now=1030) is None  # wrong secret
+    payload, sig = token.split(".")
+    forged = sign_session("admin", "attacker-key", 60, now=1000).split(".")[0] + "." + sig
+    assert read_session(forged, "key", now=1030) is None  # tampered payload
+    assert read_session("garbage", "key") is None
+
+
+def test_demo_users_seeded_once_with_hashed_passwords(db, login):
+    login("analyst")
+    users = db.collection("users").list()
+    assert sorted(u["id"] for u in users) == ["admin", "analyst", "compliance"]
+    assert all(TEST_PASSWORD not in u["password_hash"] for u in users)
+    login("admin")
+    assert len(db.collection("users").list()) == 3
+
+
+def test_login_rejects_bad_credentials(anon):
+    assert anon.post("/auth/login", json={"username": "analyst", "password": "nope"}).status_code == 401
+    res = anon.post("/auth/login", json={"username": "nobody", "password": TEST_PASSWORD})
+    assert res.status_code == 401
+    assert res.json()["detail"] == "Incorrect username or password"  # same message either way
+
+
+def test_login_cookie_is_httponly(anon):
+    res = anon.post("/auth/login", json={"username": " Analyst ", "password": TEST_PASSWORD})
+    assert res.status_code == 200
+    assert res.json() == {"id": "analyst", "name": "Demo Analyst", "role": "analyst", "role_label": "Analyst"}
+    cookie = res.headers["set-cookie"].lower()
+    assert "httponly" in cookie and "samesite=lax" in cookie
+
+
+@pytest.mark.parametrize("method,path", [
+    ("get", "/auth/me"),
+    ("get", "/rules"),
+    ("get", "/reviews"),
+    ("get", "/reviews/some-id"),
+    ("post", "/reviews"),
+    ("post", "/cyan/generate"),
+    ("delete", "/reviews/some-id"),
+])
+def test_api_requires_login(anon, method, path):
+    assert getattr(anon, method)(path).status_code == 401
+
+
+def test_public_pages_stay_public(anon):
+    assert anon.get("/health").status_code == 200
+    assert anon.get("/login.html").status_code == 200
+    assert anon.get("/").status_code == 200  # the page itself; its data calls need login
+
+
+def test_tampered_cookie_rejected(anon, client):
+    token = client.cookies.get("cyanguard_session")
+    anon.cookies.set("cyanguard_session", token[:-2] + ("AA" if not token.endswith("AA") else "BB"))
+    assert anon.get("/auth/me").status_code == 401
+
+
+def test_logout_clears_session(client):
+    assert client.get("/auth/me").status_code == 200
+    assert client.post("/auth/logout").status_code == 204
+    assert client.get("/auth/me").status_code == 401
+
+
+def test_analysts_only_see_their_own_reviews(db, login):
+    analyst, compliance = login("analyst"), login("compliance")
+    mine = analyst.post("/reviews", json={"text": "Index funds are popular."}).json()
+    theirs = compliance.post("/reviews", json={"text": "Bonds are popular."}).json()
+
+    assert [r["id"] for r in analyst.get("/reviews").json()] == [mine["id"]]
+    assert analyst.get(f"/reviews/{theirs['id']}").status_code == 404
+    assert {r["id"] for r in compliance.get("/reviews").json()} == {mine["id"], theirs["id"]}
+    assert compliance.get(f"/reviews/{mine['id']}").status_code == 200
+
+
+def test_only_admins_delete_reviews(login):
+    analyst, compliance, admin = login("analyst"), login("compliance"), login("admin")
+    review = analyst.post("/reviews", json={"text": "Index funds are popular."}).json()
+    assert analyst.delete(f"/reviews/{review['id']}").status_code == 403
+    assert compliance.delete(f"/reviews/{review['id']}").status_code == 403
+    assert admin.delete(f"/reviews/{review['id']}").status_code == 204
+
+
+def test_session_follows_current_role(db, login):
+    client = login("analyst")
+    users = db.collection("users")
+    users.put({**users.get("analyst"), "role": "admin"})
+    assert client.get("/auth/me").json()["role"] == "admin"
+    users.delete("analyst")
+    assert client.get("/auth/me").status_code == 401
+
+
+def test_aws_mode_requires_session_secret(monkeypatch):
+    from app import config, deps
+
+    monkeypatch.setattr(config, "APP_MODE", "aws")
+    monkeypatch.setattr(config, "SESSION_SECRET", "")
+    deps.get_session_secret.cache_clear()
     try:
-        event = json.loads((Path(__file__).parent.parent / "events" / "review.json").read_text())
-        response = handler(event, None)
+        with pytest.raises(RuntimeError, match="SESSION_SECRET"):
+            deps.get_session_secret()
     finally:
-        app.dependency_overrides.clear()
-    assert response["statusCode"] == 201
-    assert json.loads(response["body"])["status"] == "FAIL"
+        deps.get_session_secret.cache_clear()
+
+
+def test_local_session_secret_is_generated_and_kept(tmp_path, monkeypatch):
+    from app import config, deps
+
+    monkeypatch.setattr(config, "SESSION_SECRET", "")
+    monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
+    deps.get_session_secret.cache_clear()
+    try:
+        first = deps.get_session_secret()
+        deps.get_session_secret.cache_clear()
+        assert len(first) >= 32 and deps.get_session_secret() == first
+    finally:
+        deps.get_session_secret.cache_clear()

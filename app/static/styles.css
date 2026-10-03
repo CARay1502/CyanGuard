@@ -100,6 +100,39 @@ body {
   white-space: nowrap;
 }
 
+.topbar-right { display: flex; align-items: center; gap: 10px; min-width: 0; }
+
+.user-chip {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topbar-btn {
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  color: #fff;
+}
+
+.topbar-btn:hover { background: rgba(255, 255, 255, 0.12); border-color: #fff; }
+
+/* Login */
+.login-main { max-width: 440px; margin: 0 auto; padding: 40px 16px; }
+.login-card label:first-of-type { margin-top: 0; }
+.login-form { display: block; }
+.login-form input { width: 100%; }
+.login-form button { width: 100%; margin-top: 18px; }
+.login-error { margin: 12px 0 0; padding: 8px 12px; border-radius: 4px; background: var(--fail-bg); color: var(--fail); font-size: 0.9rem; }
+.demo-accounts { margin-top: 22px; padding-top: 4px; border-top: 1px solid var(--border); }
+.demo-accounts ul { margin: 0; padding-left: 18px; font-size: 0.9rem; }
+.demo-accounts li { margin: 4px 0; }
+.demo-accounts code { color: var(--navy); font-weight: 600; }
+.demo-user { padding: 0; font-family: Consolas, Menlo, monospace; font-weight: 600; }
+
 /* Page heading */
 .page-head {
   max-width: 960px;
@@ -363,6 +396,7 @@ mark sup { font-size: 0.68rem; font-weight: 700; margin-left: 1px; color: var(--
 }
 
 @media (max-width: 520px) {
+  .user-chip { display: none; }
   .brand-sub { display: none; }
   .page-head h1 { font-size: 1.25rem; }
   .card { padding: 16px; }
