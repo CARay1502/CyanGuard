@@ -9,7 +9,6 @@ Three ways to get a Cyan response:
 - Typed prompts in local mode go to SyntheticCyan, which picks a canned response by keyword.
 - Typed prompts in AWS mode go to BedrockCyan, a real model with a Cyan system prompt.
 """
-
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -17,6 +16,7 @@ CYAN_SYSTEM_PROMPT = (
     "You are Cyan, a friendly AI assistant for a retail brokerage. "
     "Answer customer questions about investing clearly and concisely."
 )
+
 
 # --- Canned outputs ---
 

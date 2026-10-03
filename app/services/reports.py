@@ -30,14 +30,15 @@ def summarize(reviews: list[dict], *, now: datetime, days: int, tz_offset_minute
     `tz_offset_minutes` is the browser's Date.getTimezoneOffset(), so days are bucketed
     in the viewer's local time.
     """
+    start = now - timedelta(days=days)
     window = in_window(reviews, now, days)
-    local = lambda moment: moment - timedelta(minutes=tz_offset_minutes)  # noqa: E731
-    today = local(now).date()
+    tz_offset = timedelta(minutes=tz_offset_minutes)
+    today = (now - tz_offset).date()
 
     # Daily result counts, oldest day first, including empty days.
     daily = {today - timedelta(days=i): dict.fromkeys(STATUSES, 0) for i in range(days)}
     for r in window:
-        day = local(_when(r)).date()
+        day = (_when(r) - tz_offset).date()
         if day in daily:
             daily[day][r["status"]] += 1
 
@@ -57,7 +58,7 @@ def summarize(reviews: list[dict], *, now: datetime, days: int, tz_offset_minute
         (datetime.fromisoformat(c["resolved_at"]) - datetime.fromisoformat(c["opened_at"])).total_seconds() / 3600
         for c in cases
         if c["state"] in RESOLVED and c.get("resolved_at")
-        and datetime.fromisoformat(c["resolved_at"]) >= now - timedelta(days=days)
+        and datetime.fromisoformat(c["resolved_at"]) >= start
     ]
 
     submitters: dict[str, int] = {}
@@ -67,7 +68,7 @@ def summarize(reviews: list[dict], *, now: datetime, days: int, tz_offset_minute
 
     return {
         "days": days,
-        "period_start": (now - timedelta(days=days)).isoformat(timespec="seconds"),
+        "period_start": start.isoformat(timespec="seconds"),
         "period_end": now.isoformat(timespec="seconds"),
         "total": len(window),
         "by_status": {s: sum(r["status"] == s for r in window) for s in STATUSES},

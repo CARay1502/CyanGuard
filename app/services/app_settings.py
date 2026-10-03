@@ -27,11 +27,8 @@ class AppSettings(BaseModel):
 
 
 def load_settings(settings: Storage) -> AppSettings:
-    stored = settings.get(SETTINGS_ID) or {}
-    stored.pop("id", None)
-    stored.pop("updated_at", None)
-    stored.pop("updated_by", None)
-    return AppSettings(**stored)
+    # Pydantic ignores fields the model doesn't define (id, updated_at, updated_by).
+    return AppSettings(**(settings.get(SETTINGS_ID) or {}))
 
 
 def save_settings(settings: Storage, values: AppSettings, *, by: dict, at: str) -> AppSettings:
