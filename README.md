@@ -53,6 +53,8 @@ app/
     compliance.py      # LocalRuleChecker, BedrockComplianceChecker, build_report
     storage.py         # LocalStorage (JSON file) and DynamoStorage
 lambda_handler.py      # Lambda entry point (wraps the app with Mangum)
+build_lambda.py        # builds dist/cyanguard-lambda.zip for upload
+events/                # sample events for the Lambda console's Test tab
 tests/test_app.py      # runs in local mode, no AWS needed
 ```
 
@@ -83,17 +85,44 @@ Endpoints: `GET /health`, `GET /rules`, `POST /cyan/generate`, `GET/POST /review
 
 ## Deploy to Lambda
 
-1. Package the code with the AWS dependencies:
-   ```bash
-   pip install -r requirements-aws.txt -t build/
-   ```
-   Then copy `app/` and `lambda_handler.py` into `build/` and zip the contents of `build/`.
-2. Create a Python 3.12 Lambda function, upload the zip, and set the handler to
-   `lambda_handler.handler`. Set the timeout to at least 30 seconds, because Bedrock calls can take several seconds.
-3. Set environment variables: `APP_MODE=aws`, `REVIEWS_TABLE`, `BEDROCK_MODEL_ID`,
-   and optionally `COMPLIANCE_MODEL_ID`. (`AWS_REGION` is set by Lambda automatically.)
-4. Give the function's role permission for `dynamodb:Scan/GetItem/PutItem/DeleteItem`
-   on the table and `bedrock:InvokeModel` on the model(s).
-5. Add a Function URL or API Gateway trigger to reach it over HTTP.
+### 1. Build the zip (on your machine)
+
+```bash
+python build_lambda.py
+```
+
+This creates `dist/cyanguard-lambda.zip` (about 3 MB). It downloads the **Linux**
+versions of the packages, because Lambda runs on Linux. Re-run it after every code change.
+
+### 2. Create the function (AWS console, region us-east-1)
+
+1. *Lambda -> Create function -> Author from scratch*: name `cyanguard`,
+   runtime **Python 3.12**, architecture **x86_64**.
+2. *Code -> Upload from -> .zip file*: upload `dist/cyanguard-lambda.zip`.
+3. *Code -> Runtime settings -> Edit*: handler `lambda_handler.handler`.
+4. *Configuration -> General configuration -> Edit*: timeout **30 sec**, memory **512 MB**.
+5. *Configuration -> Environment variables*: `REVIEWS_TABLE=cyanguard-reviews`
+   (and `BEDROCK_MODEL_ID` / `COMPLIANCE_MODEL_ID` only if you want non-default models).
+   `APP_MODE` defaults to `aws` on Lambda, and `AWS_REGION` is set automatically.
+6. *Configuration -> Permissions*: click the execution role, then add permissions for
+   `dynamodb:Scan/GetItem/PutItem/DeleteItem` on the table and `bedrock:InvokeModel`.
+7. *Configuration -> Concurrency*: reserved concurrency **2**, to cap cost if the URL leaks.
+
+### 3. Test it
+
+In the *Test* tab, create a test event and paste in the contents of `events/health.json`.
+It should return status 200 with `{"status": "ok", "mode": "aws"}`.
+
+Then test the permissions with `events/review.json`. It calls Bedrock and saves to DynamoDB,
+and should return status 201 with a `"FAIL"` review. An `AccessDeniedException` means step 2.6 is incomplete.
+
+### 4. Make it reachable
+
+*Configuration -> Function URL -> Create*. Auth type `NONE` means anyone with the link can
+use the app (there is no login yet), so keep the URL private. Open it to see the frontend.
+
+### Updating later
+
+Run `python build_lambda.py` again and upload the new zip (step 2.2). Nothing else changes.
 
 Once this gets more involved, consider AWS SAM or CDK to automate these steps.

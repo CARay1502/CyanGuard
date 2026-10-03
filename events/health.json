@@ -1,0 +1,29 @@
+{
+  "version": "2.0",
+  "routeKey": "$default",
+  "rawPath": "/health",
+  "rawQueryString": "",
+  "headers": {
+    "host": "example.lambda-url.us-east-1.on.aws",
+    "user-agent": "lambda-console-test"
+  },
+  "requestContext": {
+    "accountId": "anonymous",
+    "apiId": "example",
+    "domainName": "example.lambda-url.us-east-1.on.aws",
+    "domainPrefix": "example",
+    "http": {
+      "method": "GET",
+      "path": "/health",
+      "protocol": "HTTP/1.1",
+      "sourceIp": "127.0.0.1",
+      "userAgent": "lambda-console-test"
+    },
+    "requestId": "test-request",
+    "routeKey": "$default",
+    "stage": "$default",
+    "time": "02/Oct/2026:00:00:00 +0000",
+    "timeEpoch": 1790899200000
+  },
+  "isBase64Encoded": false
+}

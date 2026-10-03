@@ -57,7 +57,13 @@ class DynamoStorage:
         self.table = boto3.resource("dynamodb", region_name=region).Table(table_name)
 
     def list(self) -> list[dict]:
-        return self.table.scan().get("Items", [])
+        # A single scan returns at most 1 MB, so keep going until all pages are read.
+        response = self.table.scan()
+        items = response.get("Items", [])
+        while "LastEvaluatedKey" in response:
+            response = self.table.scan(ExclusiveStartKey=response["LastEvaluatedKey"])
+            items.extend(response.get("Items", []))
+        return items
 
     def get(self, item_id: str) -> dict | None:
         return self.table.get_item(Key={"id": item_id}).get("Item")

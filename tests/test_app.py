@@ -88,3 +88,45 @@ def test_frontend_served(client):
     res = client.get("/")
     assert res.status_code == 200
     assert "CyanGuard" in res.text
+
+
+def test_lambda_handler_with_console_event():
+    import json
+    from pathlib import Path
+
+    from lambda_handler import handler
+
+    event = json.loads((Path(__file__).parent.parent / "events" / "health.json").read_text())
+    response = handler(event, None)
+    assert response["statusCode"] == 200
+    assert json.loads(response["body"]) == {"status": "ok", "mode": "local"}
+
+
+def test_dynamo_list_reads_all_pages():
+    from app.services.storage import DynamoStorage
+
+    class FakeTable:
+        def scan(self, **kwargs):
+            if "ExclusiveStartKey" not in kwargs:
+                return {"Items": [{"id": "a"}], "LastEvaluatedKey": {"id": "a"}}
+            return {"Items": [{"id": "b"}]}
+
+    storage = DynamoStorage.__new__(DynamoStorage)  # skip boto3 setup
+    storage.table = FakeTable()
+    assert [i["id"] for i in storage.list()] == ["a", "b"]
+
+
+def test_lambda_review_event(tmp_path):
+    import json
+    from pathlib import Path
+
+    from lambda_handler import handler
+
+    app.dependency_overrides[get_storage] = lambda: LocalStorage(str(tmp_path / "reviews.json"))
+    try:
+        event = json.loads((Path(__file__).parent.parent / "events" / "review.json").read_text())
+        response = handler(event, None)
+    finally:
+        app.dependency_overrides.clear()
+    assert response["statusCode"] == 201
+    assert json.loads(response["body"])["status"] == "FAIL"

@@ -1,0 +1,4 @@
+# Packages bundled into the Lambda zip (see build_lambda.py).
+# boto3 is not listed because the Lambda Python runtime already includes it.
+fastapi
+mangum
