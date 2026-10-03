@@ -9,76 +9,38 @@
 
 <body>
 
-  <!-- =========================
-       CYANGUARD HEADER
-       ========================= -->
-  <!-- Filled by common.js: brand, nav (by role), mode, user, sign out -->
+  <!-- Filled by common.js -->
   <header class="topbar" id="topbar"></header>
 
-
-  <!-- =========================
-       PAGE INTRO
-       ========================= -->
   <div class="page-head">
-
     <h1>AI Safety & Risk Control Center</h1>
-
     <p>
-      An independent protection layer that evaluates AI-generated
-      financial communications and actions before they reach clients
-      or move toward execution.
+      An independent protection layer that evaluates AI-generated financial communications
+      and actions before they reach clients or move toward execution.
     </p>
-
   </div>
 
-
   <main>
-
-    <!-- =========================
-         STEP 1 — CYAN
-         ========================= -->
+    <!-- Step 1: generate (or paste) an AI output -->
     <section class="card">
-
       <h2>1. Generate an action with Cyan</h2>
-
       <p class="muted">
         Simulate an advisor request and generate a response from Cyan.
         You can also paste output from another AI system below.
       </p>
 
       <form id="generate-form">
-
-        <input
-          id="prompt"
-          placeholder="Ask Cyan an advisor or client question…"
-          required
-        >
-
-        <button type="submit">
-          Generate with Cyan
-        </button>
-
+        <input id="prompt" placeholder="Ask Cyan an advisor or client question…" required>
+        <button type="submit">Generate with Cyan</button>
       </form>
 
-
-      <!-- Demo scenarios: buttons filled by app.js from /cyan/scenarios -->
+      <!-- Scenario buttons filled by app.js from /cyan/scenarios -->
       <div class="chips" id="scenario-chips">
         <span class="muted">Demo scenarios:</span>
       </div>
 
-
-      <label for="output">
-        Cyan proposed output / action
-        <span class="muted">
-          (editable before analysis)
-        </span>
-      </label>
-
-      <textarea
-        id="output"
-        rows="7"
-        placeholder="Cyan's generated response will appear here…"
-      ></textarea>
+      <label for="output">Cyan proposed output / action <span class="muted">(editable before analysis)</span></label>
+      <textarea id="output" rows="7" placeholder="Cyan's generated response will appear here…"></textarea>
 
       <!-- Shown when a demo scenario filled the output -->
       <p id="scripted-note" class="scripted-note" hidden>
@@ -86,168 +48,53 @@
         scenario uses a pre-written Cyan response. The CyanGuard analysis below is real.
       </p>
 
-
       <div class="row">
-
-        <!-- Filled automatically by app.js -->
         <span id="source" class="muted"></span>
-
-        <button id="check-btn" type="button">
-          Analyze with CyanGuard
-        </button>
-
+        <button id="check-btn" type="button">Analyze with CyanGuard</button>
       </div>
-
     </section>
 
-
-    <!-- =========================
-         STEP 2 — CYANGUARD RESULT
-         ========================= -->
-    <section
-      class="card"
-      id="report-card"
-      hidden
-    >
-
+    <!-- Step 2: CyanGuard result. Same markup as the Case page so report.js can render it -->
+    <section class="card" id="report-card" hidden>
       <h2>2. CyanGuard Risk Analysis</h2>
-
       <p class="muted">
         CyanGuard independently evaluates the proposed AI output
         and identifies risks that may require human review.
       </p>
-
-
-      <!-- Decision overview -->
       <div class="overview">
-
-        <div
-          id="status"
-          class="status"
-        ></div>
-
-
-        <div class="stat">
-
-          <strong id="score"></strong>
-
-          <span>
-            safety score
-          </span>
-
-        </div>
-
-
-        <div class="stat sev-high">
-
-          <strong id="count-high"></strong>
-
-          <span>
-            high
-          </span>
-
-        </div>
-
-
-        <div class="stat sev-medium">
-
-          <strong id="count-medium"></strong>
-
-          <span>
-            medium
-          </span>
-
-        </div>
-
-
-        <div class="stat sev-low">
-
-          <strong id="count-low"></strong>
-
-          <span>
-            low
-          </span>
-
-        </div>
-
+        <div id="status" class="status"></div>
+        <div class="stat"><strong id="score"></strong><span>safety score</span></div>
+        <div class="stat sev-high"><strong id="count-high"></strong><span>high</span></div>
+        <div class="stat sev-medium"><strong id="count-medium"></strong><span>medium</span></div>
+        <div class="stat sev-low"><strong id="count-low"></strong><span>low</span></div>
       </div>
-
-
       <!-- Filled by report.js when the result opened a compliance case -->
       <p id="case-banner" class="case-banner" hidden></p>
-
-      <!-- Model / source information -->
-      <p
-        id="report-meta"
-        class="muted"
-      ></p>
-
-
-      <!-- Highlighted response -->
-      <h3>
-        Analyzed AI Output
-      </h3>
-
-      <div
-        id="highlighted"
-        class="highlighted"
-      ></div>
-
-
-      <!-- Triggered safeguards -->
-      <h3>
-        Detected Risks & Safeguards
-      </h3>
-
-      <ol
-        id="flags"
-        class="flags"
-      ></ol>
-
+      <p id="report-meta" class="muted"></p>
+      <h3>Analyzed AI Output</h3>
+      <div id="highlighted" class="highlighted"></div>
+      <h3>Detected Risks & Safeguards</h3>
+      <ol id="flags" class="flags"></ol>
     </section>
 
-
-    <!-- =========================
-         AUDIT HISTORY
-         ========================= -->
     <section class="card">
-
-      <h2>
-        CyanGuard Audit Trail
-      </h2>
-
+      <h2>CyanGuard Audit Trail</h2>
       <p class="muted">
         Previous AI safety reviews are retained for visibility
         and traceability during the demo.
       </p>
-
-      <ul
-        id="history"
-        class="history"
-      ></ul>
-
+      <ul id="history" class="history"></ul>
     </section>
 
-
-    <!-- =========================
-         DISCLAIMER
-         ========================= -->
     <p class="disclaimer">
-
-      CyanGuard is an AI safety and risk-screening prototype.
-      It identifies potential risks and routes uncertain or
-      high-impact actions for human review. It does not provide
-      legal advice or make final regulatory compliance determinations.
-
+      CyanGuard is an AI safety and risk-screening prototype. It identifies potential risks and
+      routes uncertain or high-impact actions for human review. It does not provide legal advice
+      or make final regulatory compliance determinations.
     </p>
-
   </main>
 
-
-  <!-- Existing application logic -->
   <script src="/common.js"></script>
   <script src="/report.js"></script>
   <script src="/app.js"></script>
-
 </body>
 </html>

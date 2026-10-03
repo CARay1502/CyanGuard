@@ -28,13 +28,13 @@ function renderCaseBanner(caseInfo) {
   if (!caseInfo) return;
   const due = new Date(caseInfo.due_at).toLocaleString();
   banner.replaceChildren(
-    el("strong", { textContent: `Sent to compliance review` }),
+    el("strong", { textContent: "Sent to compliance review" }),
     ` · ${caseInfo.priority === "high" ? "High" : "Normal"} priority · resolve by ${due} · status: ${CASE_STATE_LABEL[caseInfo.state]}`);
 }
 
 function renderHighlighted(text, flags) {
   const box = $("highlighted");
-  box.innerHTML = "";
+  box.replaceChildren();
   const spans = flags
     .map((f, i) => ({ ...f, n: i + 1 }))
     .filter((f) => f.start !== null && f.start !== undefined)
@@ -62,7 +62,7 @@ function focusFlag(n) {
 
 function renderFlags(flags) {
   const list = $("flags");
-  list.innerHTML = "";
+  list.replaceChildren();
   if (!flags.length) {
     list.append(el("li", { className: "muted", textContent: "No issues found." }));
     return;

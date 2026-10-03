@@ -1,11 +1,12 @@
-// Review queue page: compliance cases plus the notification outbox. Uses helpers from common.js.
+// Review queue page: compliance cases plus the notification outbox.
+// Uses helpers from common.js.
 
 let caseFilter = "active";
 
 async function loadCases() {
   const rows = await api(`/cases?state=${caseFilter}`);
   const body = $("cases");
-  body.innerHTML = "";
+  body.replaceChildren();
   if (!rows.length) {
     const empty = { active: "Nothing waiting for review.", resolved: "No resolved cases yet.", all: "No cases yet." };
     body.append(el("tr", {}, el("td", { colSpan: 6, className: "muted", textContent: empty[caseFilter] })));
@@ -29,16 +30,15 @@ async function loadCases() {
 async function loadOutbox() {
   const notes = await api("/notifications");
   const list = $("outbox");
-  list.innerHTML = "";
+  list.replaceChildren();
   if (!notes.length) {
     list.append(el("li", { className: "muted", textContent: "No alerts yet." }));
     return;
   }
-  const deliveryLabel = { sent: "Emailed", failed: "Email failed", outbox: "Outbox only" };
   for (const n of notes.slice(0, 20)) {
     const details = el("details", {},
       el("summary", {},
-        el("span", { className: `delivery-pill ${n.delivery.status}`, textContent: deliveryLabel[n.delivery.status] }),
+        el("span", { className: `delivery-pill ${n.delivery.status}`, textContent: DELIVERY_LABEL[n.delivery.status] }),
         el("span", { className: "outbox-subject", textContent: n.subject }),
         el("span", { className: "muted nowrap", textContent: new Date(n.created_at).toLocaleString() })),
       el("pre", { className: "outbox-body", textContent: n.body }),

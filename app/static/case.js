@@ -10,11 +10,8 @@ const ACTION_LABEL = {
 // Which buttons apply in each state (the server enforces the same rules).
 function allowedActions(c) {
   if (isResolved(c)) return hasRole("admin") ? ["reopen"] : [];
-  const actions = ["assign", "escalate", "approve", "reject"];
-  if (c.state === "escalated") {
-    return hasRole("admin") ? ["assign", "approve", "reject"] : ["assign"];
-  }
-  return actions;
+  if (c.state === "escalated") return hasRole("admin") ? ["assign", "approve", "reject"] : ["assign"];
+  return ["assign", "escalate", "approve", "reject"];
 }
 
 function renderCase(review) {
