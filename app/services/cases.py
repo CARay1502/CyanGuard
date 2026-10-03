@@ -15,7 +15,6 @@ from datetime import datetime, timedelta
 from app.services.app_settings import AppSettings
 from app.services.auth import role_at_least
 
-STATES = ("open", "in_review", "escalated", "approved", "rejected")
 RESOLVED = ("approved", "rejected")
 SYSTEM = {"id": "system", "name": "CyanGuard"}
 

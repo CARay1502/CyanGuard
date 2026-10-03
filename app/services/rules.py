@@ -7,7 +7,7 @@ title and description instead.
 This catalog is a starting point for screening, not legal advice. Have your
 compliance team review and extend it.
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 FINRA_2210 = "https://www.finra.org/rules-guidance/rulebooks/finra-rules/2210"
 
@@ -21,7 +21,7 @@ class Rule:
     url: str
     description: str
     suggestion: str
-    patterns: tuple[str, ...] = field(default_factory=tuple)
+    patterns: tuple[str, ...] = ()
 
 
 RULES: tuple[Rule, ...] = (
@@ -185,6 +185,14 @@ RULES: tuple[Rule, ...] = (
 
 RULES_BY_ID = {rule.id: rule for rule in RULES}
 
-# Used by MISSING_RISK_DISCLOSURE in the local checker.
+# Used by MISSING_RISK_DISCLOSURE in the local checker: the text mentions investing and
+# makes a recommendation or promotional claim, but never mentions risk.
 INVESTMENT_TERMS = r"\b(invest\w*|stocks?|funds?|etfs?|bonds?|crypto\w*|returns?|portfolio|securit(y|ies))\b"
 RISK_TERMS = r"\b(risks?|risky|volatil\w*|lose (some|all|money|value)|loss of principal|not guaranteed|past performance)\b"
+RECOMMENDATION_TERMS = (
+    r"\b(you should|you need to|i recommend|we recommend|recommend(?:ing|ed)?|buy|sell|invest in"
+    r"|move (?:your|the)|allocate|allocation to|guaranteed|guarantee|risk[- ]?free|sure thing|will double)\b"
+    # Percentages sit outside the group above: a trailing \b can't match after "%"
+    # when it's followed by a space or punctuation.
+    r"|\breturns? (?:of )?\d+(?:\.\d+)?%"
+)

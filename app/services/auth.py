@@ -50,7 +50,7 @@ def verify_password(password: str, stored: str | None) -> bool:
     An unknown user (stored=None) still runs a full hash, so response time doesn't
     reveal whether a username exists.
     """
-    algorithm, iterations, salt_hex, digest_hex = (stored or _dummy_hash()).split("$")
+    _algorithm, iterations, salt_hex, digest_hex =(stored or _dummy_hash()).split("$")
     candidate = hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt_hex), int(iterations))
     return stored is not None and hmac.compare_digest(candidate.hex(), digest_hex)
 
