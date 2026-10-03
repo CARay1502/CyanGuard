@@ -30,6 +30,8 @@ FAIL), a score, and flags with highlighted excerpts, rule citations, and suggest
 | PROJECTION | high | FINRA 2210(d)(1)(F) |
 | SUITABILITY | high | FINRA 2111; SEC Reg BI |
 | PII | high | SEC Regulation S-P |
+| PROMPT_INJECTION | high | OWASP LLM01: Prompt Injection; FINRA 3110 |
+| UNAPPROVED_ACTION | high | FINRA 3110; FINRA 2210(b)(1) |
 | EXAGGERATED | medium | FINRA 2210(d)(1)(B) |
 | PRESSURE | medium | FINRA 2210(d)(1)(A) |
 | TESTIMONIAL | medium | FINRA 2210(d)(6); SEC Marketing Rule 206(4)-1 |

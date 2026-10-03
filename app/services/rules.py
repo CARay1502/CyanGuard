@@ -135,12 +135,50 @@ RULES: tuple[Rule, ...] = (
         ),
     ),
     Rule(
+        id="PROMPT_INJECTION",
+        title="Prompt injection or safety override attempt",
+        severity="high",
+        citation="OWASP Top 10 for LLM Applications, LLM01: Prompt Injection; FINRA Rule 3110 (Supervision)",
+        url="https://genai.owasp.org/llmrisk/llm01-prompt-injection/",
+        description=(
+            "Instructions to ignore prior instructions or disable safety and compliance controls. "
+            "Signals the assistant was manipulated and its output can't be trusted."
+        ),
+        suggestion="Block the response, log the incident, and review the input that produced it.",
+        patterns=(
+            r"\bignore (all |any )?(previous|prior|above|earlier)( \w+)? (instructions|restrictions|rules|guidelines|prompts?)\b",
+            r"\bdisregard (all |any |the )?(previous|prior|above|earlier|system)( \w+)? (instructions|restrictions|rules|guidelines|prompts?)\b",
+            r"\b(disable|bypass|override|turn off|deactivate) (the |all |any |your )?(safety|compliance|security|guard)\w*( (rules|checks|controls|filters|guardrails|settings))?",
+            r"\b(jailbreak|developer mode)\b",
+        ),
+    ),
+    Rule(
+        id="UNAPPROVED_ACTION",
+        title="Action without required human approval",
+        severity="high",
+        citation="FINRA Rule 3110 (Supervision); FINRA Rule 2210(b)(1) (Principal approval)",
+        url="https://www.finra.org/rules-guidance/rulebooks/finra-rules/3110",
+        description=(
+            "Executing, sending, or distributing a recommendation or transaction while skipping "
+            "advisor, principal, or compliance review."
+        ),
+        suggestion="Hold the action and route it to a registered principal or advisor for approval.",
+        patterns=(
+            r"\bwithout (waiting for |any |the |prior |first getting )?(an? )?(advisor|human|principal|supervisor|compliance)('s)? (approval|review|sign[- ]?off|authorization)",
+            r"\bskip(ping)? (the )?(advisor|human|principal|compliance) (approval|review)",
+            r"\b(send|email|distribute|blast)\w*\b[^.]{0,40}\bto all (of )?(our |the |your )?clients\b",
+        ),
+    ),
+    Rule(
         id="MISSING_RISK_DISCLOSURE",
-        title="Investment discussion without risk disclosure",
+        title="Investment recommendation without risk disclosure",
         severity="medium",
         citation="FINRA Rule 2210(d)(1)(A)",
         url=FINRA_2210,
-        description="Discusses investments or returns but never mentions risk, so it isn't fair and balanced.",
+        description=(
+            "Recommends or promotes an investment, or makes a performance claim, without mentioning risk, "
+            "so it isn't fair and balanced. Neutral mentions of investments don't count."
+        ),
         suggestion="Add a balanced risk statement, e.g. 'All investments involve risk, including loss of principal.'",
     ),
 )

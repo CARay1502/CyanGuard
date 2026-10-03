@@ -111,10 +111,11 @@ class LocalRuleChecker:
             r"guarantee|"
             r"risk[- ]?free|"
             r"sure thing|"
-            r"will double|"
-            r"return \d+%|"
-            r"returns? of \d+%"
-            r")\b",
+            r"will double"
+            r")\b"
+            # Percentages sit outside the group above: a trailing \b can't
+            # match after "%" when it's followed by a space or punctuation.
+            r"|\breturns? (?:of )?\d+(?:\.\d+)?%",
             text,
             re.IGNORECASE,
         )
