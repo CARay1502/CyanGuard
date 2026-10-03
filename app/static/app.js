@@ -1,58 +1,24 @@
-async function api(path, options = {}) {
-  const res = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
-  if (res.status === 401) {
-    location.href = "/login.html"; // session missing or expired
-    throw new Error("Not signed in");
-  }
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail ? JSON.stringify(body.detail) : `${res.status} ${res.statusText}`);
-  }
-  return res.status === 204 ? null : res.json();
-}
-
-const $ = (id) => document.getElementById(id);
-const STATUS_LABEL = { PASS: "PASS", NEEDS_REVIEW: "NEEDS REVIEW", FAIL: "FAIL" };
-
-function el(tag, props = {}, ...children) {
-  const node = document.createElement(tag);
-  Object.assign(node, props);
-  node.append(...children);
-  return node;
-}
-
-// --- Signed-in user ---
-let currentUser = null;
-const ROLE_RANK = { analyst: 0, compliance: 1, admin: 2 };
-const hasRole = (minimum) => currentUser && ROLE_RANK[currentUser.role] >= ROLE_RANK[minimum];
-
-$("logout").addEventListener("click", async () => {
-  await fetch("/auth/logout", { method: "POST" });
-  location.href = "/login.html";
-});
-
-// --- Mode badge ---
-api("/health").then((h) => {
-  $("mode").textContent = `${h.mode} mode`;
-});
+// Analyze page: generate with Cyan, run a compliance check, see history.
+// Uses helpers from common.js (loaded first).
 
 // --- Step 1: generate with Cyan ---
 let lastGenerated = { prompt: "", model: "", output: "" };
 
-async function generate(prompt) {
+const sourceLabel = (model) => (model === "cyan-demo-script" ? "Source: demo script" : `Source: ${model}`);
+
+// `scenario` is a demo scenario ID: the server returns its scripted output instead of calling the model.
+async function generate(prompt, scenario = null) {
   const btn = $("generate-form").querySelector("button");
   btn.disabled = true;
   try {
     const { output, model } = await api("/cyan/generate", {
       method: "POST",
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify({ prompt, scenario }),
     });
     lastGenerated = { prompt, model, output };
     $("output").value = output;
-    $("source").textContent = `Source: ${model}`;
+    $("source").textContent = sourceLabel(model);
+    $("scripted-note").hidden = scenario === null;
   } catch (err) {
     alert(`Generate failed: ${err.message}`);
   } finally {
@@ -62,19 +28,25 @@ async function generate(prompt) {
 
 $("generate-form").addEventListener("submit", (e) => {
   e.preventDefault();
-  generate($("prompt").value);
+  generate($("prompt").value); // typed prompts always go to the real model
 });
 
-document.querySelectorAll(".chip").forEach((chip) => {
-  chip.addEventListener("click", () => {
-    $("prompt").value = chip.dataset.prompt;
-    generate(chip.dataset.prompt);
-  });
-});
+async function loadScenarios() {
+  const scenarios = await api("/cyan/scenarios");
+  $("scenario-chips").append(...scenarios.map((s) => {
+    const chip = el("button", { type: "button", className: "chip", textContent: s.label, title: s.prompt });
+    chip.addEventListener("click", () => {
+      $("prompt").value = s.prompt;
+      generate(s.prompt, s.id);
+    });
+    return chip;
+  }));
+}
 
 $("output").addEventListener("input", () => {
   const edited = $("output").value !== lastGenerated.output;
-  $("source").textContent = lastGenerated.model && !edited ? `Source: ${lastGenerated.model}` : "Source: manual";
+  $("source").textContent = lastGenerated.model && !edited ? sourceLabel(lastGenerated.model) : "Source: manual";
+  if (edited) $("scripted-note").hidden = true;
 });
 
 // --- Step 2: compliance check ---
@@ -101,74 +73,6 @@ $("check-btn").addEventListener("click", async () => {
     btn.disabled = false;
   }
 });
-
-function renderReport(review) {
-  $("report-card").hidden = false;
-
-  $("status").className = `status ${review.status}`;
-  $("status").textContent = STATUS_LABEL[review.status];
-  $("score").textContent = review.score;
-  for (const sev of ["high", "medium", "low"]) $(`count-${sev}`).textContent = review.counts[sev];
-
-  const when = new Date(review.created_at).toLocaleString();
-  const prompt = review.prompt ? ` · Prompt: “${review.prompt}”` : "";
-  $("report-meta").textContent = `Checked by ${review.checker} · Source: ${review.source} · ${when}${prompt}`;
-
-  renderHighlighted(review.text, review.flags);
-  renderFlags(review.flags);
-  $("report-card").scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-function renderHighlighted(text, flags) {
-  const box = $("highlighted");
-  box.innerHTML = "";
-  const spans = flags
-    .map((f, i) => ({ ...f, n: i + 1 }))
-    .filter((f) => f.start !== null && f.start !== undefined)
-    .sort((a, b) => a.start - b.start);
-
-  let pos = 0;
-  for (const f of spans) {
-    if (f.start < pos) continue; // skip overlapping spans
-    box.append(text.slice(pos, f.start));
-    const mark = el("mark", { className: `sev-${f.severity}`, title: f.title },
-      text.slice(f.start, f.end), el("sup", { textContent: f.n }));
-    mark.addEventListener("click", () => focusFlag(f.n));
-    box.append(mark);
-    pos = f.end;
-  }
-  box.append(text.slice(pos));
-}
-
-function focusFlag(n) {
-  const item = $(`flag-${n}`);
-  document.querySelectorAll(".flag.focus").forEach((x) => x.classList.remove("focus"));
-  item.classList.add("focus");
-  item.scrollIntoView({ behavior: "smooth", block: "center" });
-}
-
-function renderFlags(flags) {
-  const list = $("flags");
-  list.innerHTML = "";
-  if (!flags.length) {
-    list.append(el("li", { className: "muted", textContent: "No issues found." }));
-    return;
-  }
-  flags.forEach((f, i) => {
-    const head = el("div", { className: "flag-head" },
-      el("strong", { textContent: `${i + 1}.` }),
-      el("span", { className: `sev-pill sev-${f.severity}`, textContent: f.severity }),
-      el("strong", { textContent: f.title }));
-    const citation = el("div", { className: "muted" }, "Citation: ",
-      el("a", { href: f.url, target: "_blank", rel: "noopener", textContent: f.citation }));
-    const item = el("li", { className: `flag ${f.severity}`, id: `flag-${i + 1}` }, head, citation);
-    if (f.excerpt) item.append(el("blockquote", { textContent: f.excerpt }));
-    item.append(
-      el("p", { textContent: f.explanation }),
-      el("p", {}, el("strong", { textContent: "Fix: " }), f.suggestion));
-    list.append(item);
-  });
-}
 
 // --- History ---
 async function loadHistory() {
@@ -208,11 +112,20 @@ async function loadHistory() {
 }
 
 async function init() {
-  currentUser = await api("/auth/me");
-  $("user").textContent = `${currentUser.name} · ${currentUser.role_label}`;
-  $("user").hidden = false;
-  $("logout").hidden = false;
-  loadHistory();
+  if (!(await initShell({ active: "analyze" }))) return;
+  await Promise.all([loadScenarios(), loadHistory()]);
+
+  // Opened from the review queue: /?review=<id>
+  const reviewId = new URLSearchParams(location.search).get("review");
+  if (reviewId) {
+    try {
+      const review = await api(`/reviews/${encodeURIComponent(reviewId)}`);
+      $("output").value = review.text;
+      renderReport(review);
+    } catch (err) {
+      alert(`Couldn't open that review: ${err.message}`);
+    }
+  }
 }
 
 init();

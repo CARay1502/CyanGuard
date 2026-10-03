@@ -16,6 +16,9 @@ from typing import Any, Protocol
 # Collection names used across the app.
 REVIEWS = "reviews"
 USERS = "users"
+SETTINGS = "settings"
+NOTIFICATIONS = "notifications"
+DIGESTS = "digests"
 
 
 class Storage(Protocol):

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reports | CyanGuard</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+
+<body>
+
+  <!-- Filled by common.js -->
+  <header class="topbar" id="topbar"></header>
+
+  <div class="page-head">
+    <h1>Reports</h1>
+    <p>How Cyan's outputs are holding up, and how quickly compliance is clearing cases.</p>
+  </div>
+
+  <main>
+    <!-- One filter row; it scopes everything below -->
+    <div class="report-toolbar">
+      <div class="filters" role="group" aria-label="Report period">
+        <button type="button" class="filter" data-days="7">Last 7 days</button>
+        <button type="button" class="filter active" data-days="30">Last 30 days</button>
+        <button type="button" class="filter" data-days="90">Last 90 days</button>
+      </div>
+      <a id="export-csv" class="button-link secondary-link" href="/reports/export.csv?days=30" download>Export CSV</a>
+    </div>
+
+    <div id="report-body" class="report-body">
+      <section class="tiles" id="tiles" aria-label="Summary"></section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>Results per day</h2>
+          <ul class="legend" id="trend-legend" aria-label="Legend"></ul>
+        </div>
+        <div class="chart" id="trend-chart"></div>
+        <details class="table-view">
+          <summary>View as table</summary>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Date</th><th>Fail</th><th>Needs review</th><th>Pass</th><th>Total</th></tr></thead>
+              <tbody id="trend-table"></tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+
+      <section class="card">
+        <h2>Most-triggered rules</h2>
+        <p class="muted">How many reviews triggered each rule in this period.</p>
+        <ul id="top-rules" class="bars"></ul>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>Compliance digests</h2>
+          <button type="button" id="generate-digest">Generate digest now</button>
+        </div>
+        <p class="muted" id="digest-help">
+          A summary for the compliance team, covering the selected period. It's saved here and sent
+          through the notification outbox (and by email, if turned on in Settings).
+        </p>
+        <ul id="digests" class="outbox"></ul>
+      </section>
+    </div>
+  </main>
+
+  <script src="/common.js"></script>
+  <script src="/reports.js"></script>
+</body>
+</html>

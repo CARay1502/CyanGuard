@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Review queue | CyanGuard</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+
+<body>
+
+  <!-- Filled by common.js -->
+  <header class="topbar" id="topbar"></header>
+
+  <div class="page-head">
+    <h1>Review queue</h1>
+    <p>Flagged AI outputs waiting for a compliance decision. High priority and soonest due come first.</p>
+  </div>
+
+  <main>
+    <section class="card">
+      <div class="card-head">
+        <h2>Cases</h2>
+        <div class="filters" role="group" aria-label="Show cases">
+          <button type="button" class="filter active" data-state="active">Active</button>
+          <button type="button" class="filter" data-state="resolved">Resolved</button>
+          <button type="button" class="filter" data-state="all">All</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table case-table">
+          <thead>
+            <tr><th>Priority</th><th>Result</th><th>AI output</th><th>Status</th><th>Assignee</th><th>Deadline</th></tr>
+          </thead>
+          <tbody id="cases"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Notification outbox</h2>
+      <p class="muted">Alerts CyanGuard sent to the compliance team. Click one to read it.</p>
+      <ul id="outbox" class="outbox"></ul>
+    </section>
+  </main>
+
+  <script src="/common.js"></script>
+  <script src="/queue.js"></script>
+</body>
+</html>

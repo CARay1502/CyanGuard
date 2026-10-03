@@ -12,20 +12,14 @@ from fastapi.testclient import TestClient
 from app.deps import get_db
 from app.main import app
 from app.services.compliance import LocalRuleChecker, build_report
-from app.services.cyan import SyntheticCyan
+from app.services.cyan import SCENARIOS, SyntheticCyan
 from app.services.storage import LocalDatabase
 
 STATIC = Path(__file__).parent.parent / "app" / "static"
 
-# The prompts behind the frontend's demo-scenario buttons, read from index.html
-# so these tests follow the real buttons.
-DEMO_PROMPTS = {
-    re.sub(r"\s+", " ", label).strip(): prompt
-    for prompt, label in re.findall(
-        r'data-prompt="([^"]+)"\s*>\s*([^<]+?)\s*</button>',
-        (STATIC / "index.html").read_text(encoding="utf-8"),
-    )
-}
+# The demo-scenario buttons on the Analyze page, by label.
+DEMO_PROMPTS = {scenario.label: scenario.prompt for scenario in SCENARIOS}
+DEMO_OUTPUTS = {scenario.label: scenario.output for scenario in SCENARIOS}
 
 
 @pytest.fixture
@@ -69,7 +63,7 @@ def rule_ids(report):
 
 
 def demo_output(label):
-    return SyntheticCyan().generate(DEMO_PROMPTS[label])
+    return DEMO_OUTPUTS[label]
 
 
 def test_health(client):
@@ -461,3 +455,91 @@ def test_frontend_files_are_revalidated(anon, path):
     assert res.headers["cache-control"] == "no-cache"
     etag = res.headers["etag"]
     assert anon.get(path, headers={"If-None-Match": etag}).status_code == 304
+
+
+# --- Pages and navigation ---
+
+PAGES = {"index.html": "app.js", "queue.html": "queue.js", "reports.html": "reports.js",
+         "settings.html": "settings.js", "case.html": "case.js"}
+
+
+@pytest.mark.parametrize("page,script", PAGES.items())
+def test_pages_load_shared_shell_first(anon, page, script):
+    html = anon.get(f"/{page}").text
+    assert 'id="topbar"' in html
+    assert html.index('src="/common.js"') < html.index(f'src="/{script}"')
+    assert anon.get(f"/{script}").status_code == 200
+
+
+def test_nav_links_point_to_real_pages(anon):
+    common = (STATIC / "common.js").read_text(encoding="utf-8")
+    hrefs = re.findall(r'href: "(/[^"]*)", role:', common)
+    assert hrefs == ["/", "/queue.html", "/reports.html", "/settings.html"]
+    for href in hrefs:
+        assert anon.get(href).status_code == 200
+
+
+@pytest.mark.parametrize("script,min_role", [
+    ("app.js", "analyst"), ("queue.js", "compliance"), ("reports.js", "compliance"), ("settings.js", "admin"),
+])
+def test_pages_check_role_matching_nav(script, min_role):
+    common = (STATIC / "common.js").read_text(encoding="utf-8")
+    page = {"app.js": "/", "queue.js": "/queue.html", "reports.js": "/reports.html", "settings.js": "/settings.html"}[script]
+    assert re.search(rf'href: "{re.escape(page)}", role: "{min_role}"', common)
+    source = (STATIC / script).read_text(encoding="utf-8")
+    if min_role == "analyst":
+        assert "initShell({ active:" in source and "minRole" not in source
+    else:
+        assert f'minRole: "{min_role}"' in source
+
+
+@pytest.mark.parametrize("page", ["index.html", "case.html"])
+def test_report_pages_load_report_js_before_page_script(anon, page):
+    html = anon.get(f"/{page}").text
+    script = PAGES[page]
+    assert html.index('src="/common.js"') < html.index('src="/report.js"') < html.index(f'src="/{script}"')
+
+
+# --- Demo scenarios (scripted outputs) ---
+
+def test_scenarios_endpoint_lists_buttons_without_outputs(client):
+    scenarios = client.get("/cyan/scenarios").json()
+    assert [sc["label"] for sc in scenarios] == list(DEMO_PROMPTS)
+    assert all(set(sc) == {"id", "label", "prompt"} for sc in scenarios)  # outputs stay server-side
+
+
+def test_scenario_returns_scripted_output_without_calling_model(client):
+    from app.deps import get_cyan
+
+    class ModelMustNotBeCalled:
+        name = "cyan-bedrock"
+
+        def generate(self, prompt):
+            raise AssertionError("scenario buttons must not call the model")
+
+    app.dependency_overrides[get_cyan] = lambda: ModelMustNotBeCalled()
+    for scenario in SCENARIOS:
+        res = client.post("/cyan/generate", json={"prompt": scenario.prompt, "scenario": scenario.id}).json()
+        assert res == {"output": scenario.output, "model": "cyan-demo-script", "scenario": scenario.id}
+
+
+def test_typed_prompts_still_use_the_model(client):
+    res = client.post("/cyan/generate", json={"prompt": "How do I start diversifying?"}).json()
+    assert res["model"] == "cyan-synthetic" and res["scenario"] is None
+
+
+def test_unknown_scenario_rejected(client):
+    assert client.post("/cyan/generate", json={"prompt": "x", "scenario": "nope"}).status_code == 404
+
+
+def test_scripted_review_source_is_recorded(client):
+    scenario = SCENARIOS[-1]
+    out = client.post("/cyan/generate", json={"prompt": scenario.prompt, "scenario": scenario.id}).json()
+    review = client.post("/reviews", json={"text": out["output"], "prompt": scenario.prompt, "source": out["model"]}).json()
+    assert review["source"] == "cyan-demo-script" and review["status"] == "FAIL"
+
+
+def test_local_keyword_matching_agrees_with_scenarios():
+    # Typing a scenario's prompt locally gives the same response as clicking its button.
+    for scenario in SCENARIOS:
+        assert SyntheticCyan().generate(scenario.prompt) == scenario.output, scenario.id

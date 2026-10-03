@@ -21,6 +21,46 @@ FAIL), a score, and flags with highlighted excerpts, rule citations, and suggest
    (high 30, medium 15, low 5). Any high-severity flag means **FAIL**, any other flag means
    **NEEDS REVIEW**, and no flags means **PASS**.
 4. **Store**: each review is saved, so it shows up in the Recent reviews list.
+5. **Route**: every FAIL / NEEDS REVIEW result opens a **compliance case** (see below).
+
+### Demo scenarios
+
+The buttons under the prompt box (Safe Summary, Advisor Review, High-Risk Action, Attack
+Simulation) always return a **scripted** Cyan response, in local and AWS mode alike. Real
+models' own safeguards usually refuse to write the risky responses a demo needs, so these are
+pre-written in `app/services/cyan.py` (`SCENARIOS`). The compliance check on them is real.
+Scripted outputs are recorded with the source `cyan-demo-script`. Typed prompts still go to the
+model. To add a scenario, add a `Scenario(...)` to `SCENARIOS`; the button appears automatically.
+
+### Compliance cases
+
+Flagged results go to the **Review queue** for a compliance officer:
+
+```
+open ──assign──► in review ──approve / reject──► approved / rejected
+  │                  │
+  └────escalate──────┴──► escalated ──approve / reject (admin only)──► resolved
+```
+
+- FAIL results are **high** priority (default 4 hours to resolve); NEEDS REVIEW results are
+  **normal** priority (default 24 hours). Admins change both on the Settings page.
+- Rejecting, escalating, and reopening require a note. Every action is added to the case's
+  audit history, which is never edited.
+- Each new case and every escalation creates a **notification**. Notifications are always
+  saved to the outbox on the Review queue page. In AWS mode, admins can also turn on **email
+  alerts** (Settings page), which are sent through Amazon SNS.
+
+### Reports
+
+The **Reports** page (compliance and admin) covers the last 7, 30, or 90 days:
+
+- Summary tiles: outputs reviewed, pass rate, failures, open and overdue cases, and average time to resolve.
+- **Results per day**: a stacked chart of Pass / Needs review / Fail, with a hover tooltip and a table view.
+- **Most-triggered rules**, counted once per review.
+- **Export CSV**: every review in the period, with its case status. Cells that start with `=`, `+`, `-`, or `@`
+  are prefixed with `'` so spreadsheet apps don't run AI output as a formula.
+- **Compliance digests**: a dated summary (numbers, top rules, overdue cases) that's saved and sent through
+  the notification outbox, and by email when turned on. Generate one any time, or schedule it on AWS (below).
 
 ### Rules covered
 
@@ -48,7 +88,9 @@ app/
   config.py            # reads APP_MODE and other settings from env / .env
   deps.py              # picks local or AWS implementations based on APP_MODE
   main.py              # API routes + serves the frontend
-  static/              # frontend: index.html, styles.css, app.js (no build step)
+  static/              # frontend, plain HTML/CSS/JS (no build step):
+                       #   common.js (header, nav by role, api helper) + one script per page:
+                       #   index.html/app.js (Analyze), queue, reports, settings, login.html
   services/
     cyan.py            # SyntheticCyan (canned samples) and BedrockCyan
     rules.py           # SEC/FINRA rule catalog with citations
@@ -67,8 +109,10 @@ python -m venv .venv
 .venv\Scripts\activate          # macOS/Linux: source .venv/bin/activate
 pip install -r requirements-dev.txt
 copy .env.example .env          # macOS/Linux: cp .env.example .env
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --reload-dir app
 ```
+
+`--reload-dir app` keeps the auto-reloader away from `build/` (thousands of files from the Lambda build).
 
 Open http://127.0.0.1:8000 for the app, or http://127.0.0.1:8000/docs for interactive API docs.
 Run tests with `pytest`.
@@ -89,7 +133,9 @@ expire after `SESSION_HOURS` (default 8). The demo password only applies when th
 are first created; changing it later doesn't update existing accounts.
 
 Endpoints: `GET /health`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`,
-`GET /rules`, `POST /cyan/generate`, `GET/POST /reviews`, `GET/DELETE /reviews/{id}`.
+`GET /rules`, `POST /cyan/generate`, `GET/POST /reviews`, `GET/DELETE /reviews/{id}`,
+`GET /cases`, `POST /reviews/{id}/case`, `GET /users/assignable`, `GET /notifications`,
+`GET/PUT /admin/settings`, `GET /reports/summary`, `GET /reports/export.csv`, `GET/POST /reports/digests`.
 Everything except `/health`, login and the static pages requires signing in.
 
 ## Run in AWS mode
@@ -100,7 +146,7 @@ Everything except `/health`, login and the static pages requires signing in.
    and sort key `id` (String). All app data (reviews, and later users, sources, ...) lives here.
 4. In the Bedrock console, make sure you have access to the model in `BEDROCK_MODEL_ID`
    (and `COMPLIANCE_MODEL_ID`, if you set a separate one).
-5. Set `APP_MODE=aws` in `.env`, then run `uvicorn app.main:app --reload` as before.
+5. Set `APP_MODE=aws` in `.env`, then run `uvicorn app.main:app --reload --reload-dir app` as before.
 
 ## Deploy to Lambda
 
@@ -123,6 +169,8 @@ versions of the packages, because Lambda runs on Linux. Re-run it after every co
 5. *Configuration -> Environment variables*:
    - `SESSION_SECRET`: **required**. A long random string that signs login cookies.
      Generate one with `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
+   - `SNS_TOPIC_ARN`: optional. Enables email alerts (see "Email alerts" below).
+   - `APP_URL`: optional. Your Function URL (ending in `/`), so scheduled digests can link to the app.
    - `DATA_TABLE` only if your table isn't named `cyanguard-data`; `BEDROCK_MODEL_ID` /
      `COMPLIANCE_MODEL_ID` only if you want non-default models.
    `APP_MODE` defaults to `aws` on Lambda, and `AWS_REGION` is set automatically.
@@ -144,6 +192,33 @@ sign in through the Function URL and run a compliance check.
 
 *Configuration -> Function URL -> Create* with auth type `NONE`. The page itself is public,
 but every API call needs a signed-in user, so open the URL and sign in.
+
+### Email alerts (optional, Amazon SNS)
+
+1. Open **Simple Notification Service** (search "SNS" in the console) -> *Topics* -> *Create topic*.
+   Type **Standard**, name `cyanguard-alerts`, leave the rest as defaults, *Create topic*.
+2. On the topic page, *Create subscription*: protocol **Email**, endpoint = the address that
+   should get alerts. Repeat for each person.
+3. Each person clicks **Confirm subscription** in the email AWS sends them. Unconfirmed
+   addresses get nothing.
+4. Copy the topic's **ARN** and add it to the Lambda as `SNS_TOPIC_ARN`.
+5. Add `sns:Publish` on that topic ARN to the function's permissions policy.
+6. Sign in as `admin`, open **Settings**, turn on **Email alerts**, and save.
+
+Emails come from "AWS Notifications" (no-reply@sns.amazonaws.com). If a send fails, the
+alert is still saved in the outbox with the error.
+
+### Scheduled compliance digest (optional, EventBridge Scheduler)
+
+1. Open **Amazon EventBridge** -> *Scheduler* -> *Schedules* -> *Create schedule*.
+2. Name it `cyanguard-daily-digest`. Choose **Recurring schedule**, **Cron-based**, e.g.
+   `0 9 * * ? *` (9:00 every day), and pick your time zone. Set *Flexible time window* to **Off**.
+3. Target: **AWS Lambda - Invoke**, function **CyanGuard**, payload `{"cyanguard_task": "digest"}`.
+4. Permissions: **Create new role for this schedule** (it lets the scheduler invoke the function).
+5. *Create schedule*. Each run saves a digest (Reports page) and sends it like any other alert.
+
+How many days each scheduled digest covers is set on the Settings page (use 1 for a daily schedule).
+To test without waiting, run the Lambda *Test* tab with `events/digest.json`.
 
 ### Updating later
 

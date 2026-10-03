@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Case | CyanGuard</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+
+<body>
+
+  <!-- Filled by common.js -->
+  <header class="topbar" id="topbar"></header>
+
+  <div class="page-head">
+    <a href="/queue.html" class="back-link">← Review queue</a>
+    <h1>Compliance case</h1>
+    <p id="case-subtitle"></p>
+  </div>
+
+  <main>
+    <section class="card" id="case-card">
+      <div class="card-head">
+        <h2>Decision</h2>
+        <span id="case-state" class="state-pill"></span>
+      </div>
+
+      <dl id="case-details" class="details"></dl>
+
+      <div id="case-actions">
+        <label for="case-note">Note <span class="muted">(required to reject or escalate)</span></label>
+        <textarea id="case-note" rows="3" maxlength="2000" placeholder="Explain your decision for the audit trail…"></textarea>
+
+        <div class="action-row">
+          <div class="assign-group">
+            <select id="assignee" aria-label="Assign to"></select>
+            <button type="button" class="secondary" data-action="assign">Assign</button>
+          </div>
+          <div class="decision-group">
+            <button type="button" class="approve" data-action="approve">Approve</button>
+            <button type="button" class="reject" data-action="reject">Reject</button>
+            <button type="button" class="secondary" data-action="escalate">Escalate</button>
+            <button type="button" class="secondary" data-action="reopen">Reopen</button>
+          </div>
+        </div>
+        <p id="action-error" class="login-error" role="alert" hidden></p>
+      </div>
+    </section>
+
+    <!-- Same markup as the Analyze page so report.js can render it -->
+    <section class="card" id="report-card" hidden>
+      <h2>Risk analysis</h2>
+      <div class="overview">
+        <div id="status" class="status"></div>
+        <div class="stat"><strong id="score"></strong><span>safety score</span></div>
+        <div class="stat sev-high"><strong id="count-high"></strong><span>high</span></div>
+        <div class="stat sev-medium"><strong id="count-medium"></strong><span>medium</span></div>
+        <div class="stat sev-low"><strong id="count-low"></strong><span>low</span></div>
+      </div>
+      <p id="report-meta" class="muted"></p>
+      <h3>Analyzed AI output</h3>
+      <div id="highlighted" class="highlighted"></div>
+      <h3>Detected risks & safeguards</h3>
+      <ol id="flags" class="flags"></ol>
+    </section>
+
+    <section class="card">
+      <h2>Audit history</h2>
+      <ol id="history-log" class="timeline"></ol>
+    </section>
+  </main>
+
+  <script src="/common.js"></script>
+  <script src="/report.js"></script>
+  <script src="/case.js"></script>
+</body>
+</html>

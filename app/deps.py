@@ -9,7 +9,17 @@ from app import config
 from app.services.auth import SESSION_COOKIE, read_session, role_at_least
 from app.services.compliance import BedrockComplianceChecker, ComplianceChecker, LocalRuleChecker
 from app.services.cyan import BedrockCyan, CyanModel, SyntheticCyan
-from app.services.storage import REVIEWS, USERS, Database, DynamoDatabase, LocalDatabase, Storage
+from app.services.notify import EmailSender, SnsEmailSender
+from app.services.storage import (
+    NOTIFICATIONS,
+    REVIEWS,
+    SETTINGS,
+    USERS,
+    Database,
+    DynamoDatabase,
+    LocalDatabase,
+    Storage,
+)
 
 
 @lru_cache
@@ -25,6 +35,22 @@ def get_reviews(db: Database = Depends(get_db)) -> Storage:
 
 def get_users(db: Database = Depends(get_db)) -> Storage:
     return db.collection(USERS)
+
+
+def get_settings_store(db: Database = Depends(get_db)) -> Storage:
+    return db.collection(SETTINGS)
+
+
+def get_outbox(db: Database = Depends(get_db)) -> Storage:
+    return db.collection(NOTIFICATIONS)
+
+
+@lru_cache
+def get_email_sender() -> EmailSender | None:
+    """The SNS email sender, or None if email isn't available (local mode or no topic set)."""
+    if config.APP_MODE == "aws" and config.SNS_TOPIC_ARN:
+        return SnsEmailSender(config.SNS_TOPIC_ARN, config.AWS_REGION)
+    return None
 
 
 # --- Login ---

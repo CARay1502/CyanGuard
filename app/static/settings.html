@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Settings | CyanGuard</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+
+<body>
+
+  <!-- Filled by common.js -->
+  <header class="topbar" id="topbar"></header>
+
+  <div class="page-head">
+    <h1>Settings</h1>
+    <p>How CyanGuard is configured and which rules it checks.</p>
+  </div>
+
+  <main>
+    <section class="card">
+      <h2>Environment</h2>
+      <dl id="environment" class="details"></dl>
+    </section>
+
+    <section class="card">
+      <h2>Case alerts and digests</h2>
+      <form id="alerts-form" class="settings-form">
+        <label class="toggle">
+          <input type="checkbox" id="email_notifications">
+          <span class="toggle-track" aria-hidden="true"></span>
+          <span>
+            <strong>Email alerts to the compliance team</strong>
+            <span id="email-help" class="muted block"></span>
+          </span>
+        </label>
+
+        <fieldset>
+          <legend>Send a "case opened" alert for</legend>
+          <label class="check"><input type="checkbox" name="notify_on" value="FAIL"> Fail results</label>
+          <label class="check"><input type="checkbox" name="notify_on" value="NEEDS_REVIEW"> Needs-review results</label>
+          <p class="muted">Escalations always send an alert. Every alert is also kept in the Review queue's outbox.</p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Time to resolve a case</legend>
+          <div class="sla-grid">
+            <label for="sla_hours_high">High priority (fail)</label>
+            <span><input id="sla_hours_high" type="number" min="1" max="720" required> hours</span>
+            <label for="sla_hours_normal">Normal priority (needs review)</label>
+            <span><input id="sla_hours_normal" type="number" min="1" max="720" required> hours</span>
+          </div>
+          <p class="muted">Applies to cases opened after you save.</p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Scheduled compliance digest</legend>
+          <div class="sla-grid">
+            <label for="digest_days">Each digest covers the last</label>
+            <span><input id="digest_days" type="number" min="1" max="90" required> days</span>
+          </div>
+          <p class="muted">Used when the digest runs on its AWS schedule. You can also generate one any time from Reports.</p>
+        </fieldset>
+
+        <div class="row">
+          <span id="settings-status" class="muted" role="status"></span>
+          <button type="submit">Save settings</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Compliance rules</h2>
+      <p class="muted">The rules every AI output is checked against.</p>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr><th>Rule</th><th>Severity</th><th>Citation</th></tr>
+          </thead>
+          <tbody id="rules"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <p class="disclaimer">
+      Managing regulatory sources is coming next.
+    </p>
+  </main>
+
+  <script src="/common.js"></script>
+  <script src="/settings.js"></script>
+</body>
+</html>

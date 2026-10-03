@@ -30,6 +30,13 @@ SESSION_HOURS = int(os.getenv("SESSION_HOURS", "8"))
 # page on purpose (hackathon demo); override it here if you ever need a private deployment.
 DEMO_PASSWORD = os.getenv("DEMO_PASSWORD", "cyanguard-demo")
 
+# Case alerts by email: the ARN of an SNS topic with email subscriptions (AWS mode only).
+# Admins turn email on or off on the Settings page; without this, alerts stay in the in-app outbox.
+SNS_TOPIC_ARN = os.getenv("SNS_TOPIC_ARN", "")
+# The app's public address (e.g. the Lambda Function URL, ending in /). Only used for links
+# in scheduled digests, which don't run inside a web request. Optional.
+APP_URL = os.getenv("APP_URL", "")
+
 # Model that plays "Cyan" (the assistant being reviewed).
 BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-haiku-4-5-20251001-v1:0")
 # Model that performs the compliance review.
